@@ -21,14 +21,14 @@ jobs:
         run: |
           pipx install checkov
           checkov -d terraform --config-file .checkov.yaml --quiet --compact
+      - name: Install Trivy
+        run: |
+          curl -fsSL https://github.com/aquasecurity/trivy/releases/download/v0.75.0/trivy_0.75.0_Linux-64bit.tar.gz \
+            | sudo tar xz -C /usr/local/bin trivy
       - name: Trivy (infrastructure as code)
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: config
-          scan-ref: terraform
-          severity: HIGH,CRITICAL
-          trivyignores: .trivyignore
-          exit-code: "1"
+        run: |
+          trivy config --quiet --severity HIGH,CRITICAL --ignorefile .trivyignore \
+            --skip-dirs terraform/envs/dev/.terraform --exit-code 1 terraform
 
   kubernetes:
     runs-on: ubuntu-24.04
@@ -41,13 +41,11 @@ jobs:
             | sudo tar xz -C /usr/local/bin kubeconform
       - run: make chart manifests
       - name: Trivy (rendered chart)
-        run: helm template demo chart/editalis --namespace editalis > rendered.yaml
-      - uses: aquasecurity/trivy-action@0.28.0
-        with:
-          scan-type: config
-          scan-ref: rendered.yaml
-          severity: HIGH,CRITICAL
-          exit-code: "1"
+        run: |
+          curl -fsSL https://github.com/aquasecurity/trivy/releases/download/v0.75.0/trivy_0.75.0_Linux-64bit.tar.gz \
+            | sudo tar xz -C /usr/local/bin trivy
+          helm template demo chart/editalis --namespace editalis > rendered.yaml
+          trivy config --quiet --severity HIGH,CRITICAL --exit-code 1 rendered.yaml
       - name: Alert rules
         run: |
           python3 -c "import yaml; d = yaml.safe_load(open('monitoring/rules.yaml')); yaml.safe_dump({'groups': d['spec']['groups']}, open('rules-plain.yaml', 'w'))"

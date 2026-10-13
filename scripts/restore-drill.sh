@@ -25,7 +25,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-psql() { docker exec -i "$db" psql -U editalis -d editalis -v ON_ERROR_STOP=1 -At "$@"; }
+psql() { docker exec -i "$db" psql -h 127.0.0.1 -U editalis -d editalis -v ON_ERROR_STOP=1 -At "$@"; }
 tool() { docker run --rm --network "$net" --user 70:70 -e DATABASE_URL="$url" -e BACKUP_DIR=/backup \
            -v "$work":/backup -v "$here":/repo:ro "$img" "$@"; }
 fingerprint() {
@@ -37,7 +37,14 @@ echo "1. starting PostgreSQL"
 docker network create "$net" > /dev/null
 docker run -d --name "$db" --network "$net" -e POSTGRES_DB=editalis -e POSTGRES_USER=editalis \
   -e POSTGRES_PASSWORD=drill "$img" > /dev/null
-for _ in $(seq 1 30); do docker exec "$db" pg_isready -U editalis -d editalis > /dev/null 2>&1 && break; sleep 1; done
+# The image first starts a temporary server on the Unix socket to initialise the
+# database, then restarts. Only the final server listens on TCP, so wait for that.
+ready=0
+for _ in $(seq 1 60); do
+  if docker exec "$db" pg_isready -h 127.0.0.1 -U editalis -d editalis > /dev/null 2>&1; then ready=1; break; fi
+  sleep 1
+done
+[ "$ready" = 1 ] || { echo "PostgreSQL did not become ready"; exit 1; }
 
 psql > /dev/null <<'SQL'
 create table subscribers (id serial primary key, phone text not null unique, status text not null);
