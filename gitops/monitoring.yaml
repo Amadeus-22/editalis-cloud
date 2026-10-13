@@ -1,0 +1,21 @@
+# Alert rules and the dashboard, delivered the same way as the application.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: editalis-monitoring
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Amadeus-22/editalis-cloud.git
+    targetRevision: main
+    path: monitoring
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

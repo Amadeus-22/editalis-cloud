@@ -1,0 +1,61 @@
+# Alerts built on kube-state-metrics, so they work before the application
+# exports metrics of its own. Each alert links to a section of docs/runbook.md.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: editalis
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: editalis.availability
+      rules:
+        - alert: EditalisApiUnavailable
+          expr: kube_deployment_status_replicas_available{namespace="editalis", deployment=~".*-api"} < 1
+          for: 2m
+          labels: { severity: critical }
+          annotations:
+            summary: No API pod is ready
+            runbook: docs/runbook.md#api-unavailable
+        - alert: EditalisApiDegraded
+          expr: |
+            kube_deployment_status_replicas_available{namespace="editalis", deployment=~".*-api"}
+              < kube_deployment_spec_replicas{namespace="editalis", deployment=~".*-api"}
+          for: 10m
+          labels: { severity: warning }
+          annotations:
+            summary: Fewer API pods are ready than requested
+            runbook: docs/runbook.md#api-unavailable
+        - alert: EditalisWorkerDown
+          expr: kube_deployment_status_replicas_available{namespace="editalis", deployment=~".*-worker"} < 1
+          for: 5m
+          labels: { severity: critical }
+          annotations:
+            summary: The pipeline worker is not running, so no notices are collected or delivered
+            runbook: docs/runbook.md#worker-down
+        - alert: EditalisPodRestarting
+          expr: increase(kube_pod_container_status_restarts_total{namespace="editalis"}[30m]) > 3
+          labels: { severity: warning }
+          annotations:
+            summary: "Container {{ $labels.container }} restarted more than 3 times in 30 minutes"
+            runbook: docs/runbook.md#pod-restarting
+    - name: editalis.jobs
+      rules:
+        - alert: EditalisMigrationFailed
+          expr: kube_job_status_failed{namespace="editalis", job_name=~".*-migrate"} > 0
+          labels: { severity: critical }
+          annotations:
+            summary: The database migration job failed, so the release did not roll out
+            runbook: docs/runbook.md#migration-failed
+        - alert: EditalisBackupFailed
+          expr: kube_job_status_failed{namespace="editalis", job_name=~".*-backup-.*"} > 0
+          labels: { severity: warning }
+          annotations:
+            summary: A scheduled database backup failed
+            runbook: docs/runbook.md#backup-failed
+        - alert: EditalisBackupTooOld
+          expr: time() - max(kube_cronjob_status_last_successful_time{namespace="editalis", cronjob=~".*-backup"}) > 36 * 3600
+          labels: { severity: critical }
+          annotations:
+            summary: No successful database backup in the last 36 hours
+            runbook: docs/runbook.md#backup-failed

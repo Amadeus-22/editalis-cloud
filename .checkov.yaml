@@ -1,0 +1,17 @@
+# Checks skipped on purpose. Each one is explained in docs/security-scan.md.
+framework:
+  - terraform
+skip-path:
+  - terraform/envs/dev/.terraform
+skip-check:
+  - CKV_AWS_88   # node has a public IP: no NAT gateway in the lab; inbound is closed by the security group
+  - CKV_AWS_145  # S3 uses SSE-S3 instead of a customer KMS key
+  - CKV_AWS_354  # Performance Insights uses the AWS-managed key
+  - CKV_AWS_293  # RDS deletion protection is off only when lab = true
+  - CKV_AWS_157  # RDS Multi-AZ is off only when lab = true
+  - CKV_AWS_150  # load balancer deletion protection is off only when lab = true
+  - CKV_AWS_144  # no cross-region replication for a single-region lab
+  - CKV_AWS_18   # the logs bucket does not log access to itself
+  - CKV2_AWS_62  # no S3 event notifications needed
+  - CKV2_AWS_28  # no WAF in front of the lab load balancer
+  - CKV2_AWS_5   # false positive: the security groups are attached in another module

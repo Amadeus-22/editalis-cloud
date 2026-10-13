@@ -1,0 +1,26 @@
+# Small footprint for a single-node lab: one Prometheus, Grafana and
+# Alertmanager, 3 days of retention, no control-plane scraping that k3s hides.
+prometheus:
+  prometheusSpec:
+    retention: 3d
+    resources:
+      requests: { cpu: 100m, memory: 400Mi }
+      limits: { memory: 800Mi }
+    ruleSelectorNilUsesHelmValues: false
+grafana:
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: ALL
+alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests: { cpu: 10m, memory: 32Mi }
+      limits: { memory: 64Mi }
+kubeEtcd: { enabled: false }
+kubeScheduler: { enabled: false }
+kubeControllerManager: { enabled: false }
+kubeProxy: { enabled: false }

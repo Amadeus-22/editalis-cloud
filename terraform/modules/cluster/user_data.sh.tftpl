@@ -1,0 +1,23 @@
+#!/bin/bash
+# First boot: install k3s with the bundled Traefik ingress exposed on a fixed
+# NodePort, which is the only port the load balancer is allowed to reach.
+set -euo pipefail
+
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="${k3s_version}" sh -s - \
+  --write-kubeconfig-mode 0600 \
+  --secrets-encryption
+
+cat > /var/lib/rancher/k3s/server/manifests/traefik-config.yaml <<'YAML'
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    service:
+      type: NodePort
+    ports:
+      web:
+        nodePort: ${ingress_node_port}
+YAML

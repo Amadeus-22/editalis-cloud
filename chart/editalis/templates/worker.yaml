@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-worker
+  labels: {{- include "editalis.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 1
+  # Never two schedulers at once: stop the old pod before starting the new one.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: {{- include "editalis.selector" . | nindent 6 }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels: {{- include "editalis.labels" . | nindent 8 }}
+        app.kubernetes.io/component: worker
+    spec:
+      serviceAccountName: {{ .Release.Name }}
+      automountServiceAccountToken: false
+      securityContext: {{- include "editalis.podSecurity" . | nindent 8 }}
+      containers:
+        - name: worker
+          image: {{ include "editalis.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["python", "run.py"]
+          envFrom:
+            - secretRef: { name: {{ .Values.existingSecret }} }
+          resources: {{- toYaml .Values.worker.resources | nindent 12 }}
+          securityContext: {{- include "editalis.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}

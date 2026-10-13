@@ -1,0 +1,81 @@
+{{- if .Values.backup.enabled }}
+{{- if eq .Values.backup.destination "pvc" }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Release.Name }}-backup
+  labels: {{- include "editalis.labels" . | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: {{ .Values.backup.pvcSize }}
+---
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-backup
+  labels: {{- include "editalis.labels" . | nindent 4 }}
+data:
+  backup.sh: |
+{{ .Files.Get "files/pg-backup.sh" | indent 4 }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Release.Name }}-backup
+  labels: {{- include "editalis.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels: {{- include "editalis.labels" . | nindent 12 }}
+            app.kubernetes.io/component: backup
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 70
+            runAsGroup: 70
+            fsGroup: 70
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: backup
+              image: {{ .Values.backup.image }}
+              command: ["/bin/sh", "/scripts/backup.sh"]
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef: { name: {{ .Values.existingSecret }}, key: DATABASE_URL }
+                - { name: BACKUP_DIR, value: /backup }
+                - { name: RETENTION_DAYS, value: {{ .Values.backup.retentionDays | quote }} }
+                - { name: S3_BUCKET, value: {{ .Values.backup.s3Bucket | quote }} }
+              resources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits: { memory: 256Mi }
+              securityContext: {{- include "editalis.containerSecurity" . | nindent 16 }}
+              volumeMounts:
+                - { name: scripts, mountPath: /scripts, readOnly: true }
+                - { name: backup, mountPath: /backup }
+                - { name: tmp, mountPath: /tmp }
+          volumes:
+            - name: scripts
+              configMap: { name: {{ .Release.Name }}-backup }
+            - name: tmp
+              emptyDir: {}
+            - name: backup
+              {{- if eq .Values.backup.destination "pvc" }}
+              persistentVolumeClaim: { claimName: {{ .Release.Name }}-backup }
+              {{- else }}
+              emptyDir: {}
+              {{- end }}
+{{- end }}

@@ -1,0 +1,7 @@
+# Accepted findings. Each one is explained in docs/security-scan.md.
+# S3 buckets use SSE-S3 rather than a customer-managed KMS key.
+AWS-0132
+# The load balancer is the public entry point by design.
+AWS-0053
+# The node needs outbound HTTPS for image pulls, SSM and S3; there are no VPC endpoints in the lab.
+AWS-0104

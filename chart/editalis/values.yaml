@@ -1,0 +1,40 @@
+image:
+  repository: ghcr.io/amadeus-22/editalis
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+# Name of an existing Secret with DATABASE_URL and the application secrets
+# (ADMIN_TOKEN, API keys). The chart never contains secret values.
+existingSecret: editalis-env
+
+api:
+  replicas: 2
+  port: 8000
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }
+
+worker:
+  # One worker: the pipeline is idempotent, but a single scheduler keeps the
+  # external sources from being polled twice per cycle.
+  resources:
+    requests: { cpu: 50m, memory: 128Mi }
+    limits: { memory: 256Mi }
+
+ingress:
+  enabled: true
+  className: traefik
+  host: ""
+
+backup:
+  enabled: true
+  schedule: "15 6 * * *"
+  image: postgres:16-alpine
+  # Where dumps go. "s3" needs bucket and an AWS CLI image; "pvc" keeps them on a volume.
+  destination: pvc
+  s3Bucket: ""
+  pvcSize: 2Gi
+  retentionDays: 7
+
+serviceMonitor:
+  enabled: false

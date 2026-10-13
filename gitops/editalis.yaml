@@ -1,0 +1,36 @@
+# Argo CD keeps the cluster equal to what is in Git: a change to the chart or to
+# the values below is deployed by a commit, and manual drift is reverted.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: editalis
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Amadeus-22/editalis-cloud.git
+    targetRevision: main
+    path: chart/editalis
+    helm:
+      valuesObject:
+        image:
+          tag: "0.1.0"
+        backup:
+          destination: pvc
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: editalis
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 2m

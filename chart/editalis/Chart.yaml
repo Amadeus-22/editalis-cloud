@@ -1,0 +1,6 @@
+apiVersion: v2
+name: editalis
+description: Editalis API, worker, migration job and scheduled PostgreSQL backup
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

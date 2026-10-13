@@ -1,0 +1,60 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.5
+      - run: make fmt validate
+      - name: Checkov
+        run: |
+          pipx install checkov
+          checkov -d terraform --config-file .checkov.yaml --quiet --compact
+      - name: Trivy (infrastructure as code)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: config
+          scan-ref: terraform
+          severity: HIGH,CRITICAL
+          trivyignores: .trivyignore
+          exit-code: "1"
+
+  kubernetes:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Install kubeconform
+        run: |
+          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz \
+            | sudo tar xz -C /usr/local/bin kubeconform
+      - run: make chart manifests
+      - name: Trivy (rendered chart)
+        run: helm template demo chart/editalis --namespace editalis > rendered.yaml
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: config
+          scan-ref: rendered.yaml
+          severity: HIGH,CRITICAL
+          exit-code: "1"
+      - name: Alert rules
+        run: |
+          python3 -c "import yaml; d = yaml.safe_load(open('monitoring/rules.yaml')); yaml.safe_dump({'groups': d['spec']['groups']}, open('rules-plain.yaml', 'w'))"
+          docker run --rm -v "$PWD/rules-plain.yaml:/r.yaml:ro" --entrypoint promtool prom/prometheus:latest check rules /r.yaml
+
+  restore-drill:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: make drill
